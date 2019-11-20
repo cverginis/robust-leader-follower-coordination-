@@ -1,0 +1,19 @@
+<package>
+  <name>LTL_mas_navigation</name>
+  <version>1.0.0</version>
+  <description>
+    STUFF
+  </description>
+  <maintainer email="cverginis@kth.se">Christos Verginis</maintainer>
+  <license>None</license>
+  <author>Christos Verginis</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>std_msgs</build_depend>
+  <build_depend>std_srvs</build_depend>=
+
+  <run_depend>std_msgs</run_depend>
+  <run_depend>std_srvs</run_depend>
+  <run_depend>rotors_gazebo</run_depend>
+</package>

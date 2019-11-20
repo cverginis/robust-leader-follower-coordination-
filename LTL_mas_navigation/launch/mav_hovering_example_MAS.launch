@@ -1,0 +1,382 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="mav_name" default="firefly"/>
+  <arg name="world_name" default="basic_spheres"/>
+  <arg name="enable_logging" default="false" />
+  <arg name="enable_ground_truth" default="true" />
+  <arg name="log_file" default="$(arg mav_name)" />
+  <arg name="debug" default="false"/>
+  <arg name="gui" default="true"/>
+  <arg name="paused" default="true"/>
+  <!-- The following line causes gzmsg and gzerr messages to be printed to the console
+      (even when Gazebo is started through roslaunch) -->
+  <arg name="verbose" default="false"/>
+
+  <env name="GAZEBO_MODEL_PATH" value="${GAZEBO_MODEL_PATH}:$(find rotors_gazebo)/models"/>
+  <env name="GAZEBO_RESOURCE_PATH" value="${GAZEBO_RESOURCE_PATH}:$(find rotors_gazebo)/models"/>
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find rotors_gazebo)/worlds/$(arg world_name).world" />
+    <arg name="debug" value="$(arg debug)" />
+    <arg name="paused" value="$(arg paused)" />
+    <arg name="gui" value="$(arg gui)" />
+    <arg name="verbose" value="$(arg verbose)"/>
+  </include>
+
+
+
+  <group ns="$(arg mav_name)_1">
+    <include file="$(find rotors_gazebo)/launch/spawn_mav_colors.launch">
+      <arg name="color" default="Blue"/>      
+      <arg name="mav_name" value="$(arg mav_name)" />
+      <arg name="namespace" default="$(arg mav_name)_1"/>
+      <arg name="x" default="0.0"/>
+      <arg name="y" default="0.0"/>
+      <arg name="z" default="0.1"/>
+      <arg name="model" value="$(find rotors_description)/urdf/mav_generic_odometry_sensor.gazebo" />
+      <arg name="enable_logging" value="$(arg enable_logging)" />
+      <arg name="enable_ground_truth" value="$(arg enable_ground_truth)" />
+      <arg name="log_file" value="$(arg log_file)"/>
+    </include>
+    <node name="roll_pitch_yawrate_thrust_controller_node" pkg="rotors_control" type="roll_pitch_yawrate_thrust_controller_node" output="screen">
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/roll_pitch_yawrate_thrust_controller_$(arg mav_name).yaml" />
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/$(arg mav_name).yaml" />
+      <remap from="odometry" to="odometry_sensor1/odometry" />
+    </node>   
+    <group>
+      <remap from="uav_roll_pitch_yawrate_thrust" to="/$(arg mav_name)_1/command/roll_pitch_yawrate_thrust"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_1/ground_truth/odometry"/>     
+      <include file="$(find controllers)/launch/uav_controller.launch">
+          <arg name="uav_name" value="$(arg mav_name)"/>
+      </include>
+    </group>      
+    <group>
+      <remap from="other_uav_odometry_1" to="/$(arg mav_name)_2/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_2" to="/$(arg mav_name)_3/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_3" to="/$(arg mav_name)_4/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_4" to="/$(arg mav_name)_5/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_5" to="/$(arg mav_name)_6/ground_truth/odometry"/>
+      <remap from="other_uav_arrival_1" to="/$(arg mav_name)_2/arrival_topic"/>
+      <remap from="other_uav_arrival_2" to="/$(arg mav_name)_3/arrival_topic"/>
+      <remap from="other_uav_arrival_3" to="/$(arg mav_name)_4/arrival_topic"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_1/ground_truth/odometry"/>
+      <remap from="theta_hat_pub" to="/$(arg mav_name)_1/theta_hat_pub"/>
+      <remap from="d_hat_pub" to="/$(arg mav_name)_1/d_hat_pub"/>
+      <remap from="f_hat_pub" to="/$(arg mav_name)_1/f_hat_pub"/>
+      <param name="priority" value="1"/>
+      <param name="agent_number" value="1"/>
+      <param name="first_region" value="0"/>
+      <node name="navigation_adapt_integrator" pkg="LTL_mas_navigation" type="navigation_adapt_integrator.py" output="screen"/>        
+    </group>    
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+    <node pkg="rosbag" type="record" name = "record"  output="screen" args="/$(arg mav_name)_1/ground_truth/odometry -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_1_pos.bag" /> 
+    <node pkg="rosbag" type="record" name = "record_u"  output="screen" args="/$(arg mav_name)_1/uav_force_reference -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_1_inputs.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_leader_e"  output="screen" args="/$(arg mav_name)_1/leader_error -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_leader_error.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_leader_time"  output="screen" args="/$(arg mav_name)_1/leader_time -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/time.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_theta_hat"  output="screen" args="/$(arg mav_name)_1/theta_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_1_theta_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_d_hat"  output="screen" args="/$(arg mav_name)_1/d_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_1_d_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_f_hat"  output="screen" args="/$(arg mav_name)_1/f_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_1_f_hat.bag"
+     />
+
+  </group>
+
+
+
+<group ns="$(arg mav_name)_2">
+    <include file="$(find rotors_gazebo)/launch/spawn_mav_colors.launch">
+      <arg name="color" default="Red"/>
+      <arg name="mav_name" value="$(arg mav_name)" />
+      <arg name="namespace" default="$(arg mav_name)_2"/>
+      <arg name="x" default="2.0"/>
+      <arg name="y" default="-0.5"/>
+      <arg name="z" default="0.1"/>
+      <arg name="model" value="$(find rotors_description)/urdf/mav_generic_odometry_sensor.gazebo" />
+      <arg name="enable_logging" value="$(arg enable_logging)" />
+      <arg name="enable_ground_truth" value="$(arg enable_ground_truth)" />
+      <arg name="log_file" value="$(arg log_file)"/>
+    </include>
+    <node name="roll_pitch_yawrate_thrust_controller_node" pkg="rotors_control" type="roll_pitch_yawrate_thrust_controller_node" output="screen">
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/roll_pitch_yawrate_thrust_controller_$(arg mav_name).yaml" />
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/$(arg mav_name).yaml" />
+      <remap from="odometry" to="odometry_sensor1/odometry" />
+    </node>
+    <group>
+      <remap from="uav_roll_pitch_yawrate_thrust" to="/$(arg mav_name)_2/command/roll_pitch_yawrate_thrust"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_2/ground_truth/odometry"/>     
+      <include file="$(find controllers)/launch/uav_controller.launch">
+          <arg name="uav_name" value="$(arg mav_name)"/>
+      </include>
+    </group>
+    <group>
+      <remap from="other_uav_odometry_1" to="/$(arg mav_name)_1/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_2" to="/$(arg mav_name)_3/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_3" to="/$(arg mav_name)_4/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_4" to="/$(arg mav_name)_5/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_5" to="/$(arg mav_name)_6/ground_truth/odometry"/>
+      <remap from="other_uav_arrival_1" to="/$(arg mav_name)_1/arrival_topic"/>
+      <remap from="other_uav_arrival_2" to="/$(arg mav_name)_3/arrival_topic"/>
+      <remap from="other_uav_arrival_3" to="/$(arg mav_name)_4/arrival_topic"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_2/ground_truth/odometry"/>
+      <remap from="theta_hat_pub" to="/$(arg mav_name)_2/theta_hat_pub"/>
+      <remap from="d_hat_pub" to="/$(arg mav_name)_2/d_hat_pub"/>
+      <remap from="f_hat_pub" to="/$(arg mav_name)_2/f_hat_pub"/>
+      <param name="priority" value="2"/>
+      <param name="agent_number" value="2"/>
+      <param name="first_region" value="2"/>
+      <node name="navigation_adapt_integrator" pkg="LTL_mas_navigation" type="navigation_adapt_integrator.py" output="screen"/>
+    </group> 
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+    <node pkg="rosbag" type="record" name = "record"  output="screen" args="/$(arg mav_name)_2/ground_truth/odometry -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_2_pos.bag" />
+    <node pkg="rosbag" type="record" name = "record_u"  output="screen" args="/$(arg mav_name)_2/uav_force_reference -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_2_inputs.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_theta_hat"  output="screen" args="/$(arg mav_name)_2/theta_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_2_theta_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_d_hat"  output="screen" args="/$(arg mav_name)_2/d_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_2_d_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_f_hat"  output="screen" args="/$(arg mav_name)_2/f_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_2_f_hat.bag"
+     /> 
+  </group>
+
+
+
+<group ns="$(arg mav_name)_3">
+    <include file="$(find rotors_gazebo)/launch/spawn_mav_colors.launch">
+      <arg name="color" default="Green"/>
+      <arg name="mav_name" value="$(arg mav_name)" />
+      <arg name="namespace" default="$(arg mav_name)_3"/>
+      <arg name="x" default="-1.5"/>
+      <arg name="y" default="1.5"/>
+      <arg name="z" default="0.1"/>
+      <arg name="model" value="$(find rotors_description)/urdf/mav_generic_odometry_sensor.gazebo" />
+      <arg name="enable_logging" value="$(arg enable_logging)" />
+      <arg name="enable_ground_truth" value="$(arg enable_ground_truth)" />
+      <arg name="log_file" value="$(arg log_file)"/>
+    </include>
+    <node name="roll_pitch_yawrate_thrust_controller_node" pkg="rotors_control" type="roll_pitch_yawrate_thrust_controller_node" output="screen">
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/roll_pitch_yawrate_thrust_controller_$(arg mav_name).yaml" />
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/$(arg mav_name).yaml" />
+      <remap from="odometry" to="odometry_sensor1/odometry" />
+    </node>
+    <group>
+      <remap from="uav_roll_pitch_yawrate_thrust" to="/$(arg mav_name)_3/command/roll_pitch_yawrate_thrust"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_3/ground_truth/odometry"/>     
+      <include file="$(find controllers)/launch/uav_controller.launch">
+          <arg name="uav_name" value="$(arg mav_name)"/>
+      </include>
+    </group>
+    <group>
+      <remap from="other_uav_odometry_1" to="/$(arg mav_name)_1/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_2" to="/$(arg mav_name)_2/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_3" to="/$(arg mav_name)_4/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_4" to="/$(arg mav_name)_5/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_5" to="/$(arg mav_name)_6/ground_truth/odometry"/>
+      <remap from="other_uav_arrival_1" to="/$(arg mav_name)_1/arrival_topic"/>
+      <remap from="other_uav_arrival_2" to="/$(arg mav_name)_2/arrival_topic"/>
+      <remap from="other_uav_arrival_3" to="/$(arg mav_name)_4/arrival_topic"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_3/ground_truth/odometry"/>
+      <remap from="theta_hat_pub" to="/$(arg mav_name)_3/theta_hat_pub"/>
+      <remap from="d_hat_pub" to="/$(arg mav_name)_3/d_hat_pub"/>
+      <remap from="f_hat_pub" to="/$(arg mav_name)_3/f_hat_pub"/>
+      <param name="priority" value="3"/>
+      <param name="agent_number" value="3"/>
+      <param name="first_region" value="3"/>
+      <node name="navigation_adapt_integrator" pkg="LTL_mas_navigation" type="navigation_adapt_integrator.py" output="screen"/>
+    </group> 
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+    <node pkg="rosbag" type="record" name = "record"  output="screen" args="/$(arg mav_name)_3/ground_truth/odometry -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_3_pos.bag" />
+    <node pkg="rosbag" type="record" name = "record_u"  output="screen" args="/$(arg mav_name)_3/uav_force_reference -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_3_inputs.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_theta_hat"  output="screen" args="/$(arg mav_name)_3/theta_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_3_theta_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_d_hat"  output="screen" args="/$(arg mav_name)_3/d_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_3_d_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_f_hat"  output="screen" args="/$(arg mav_name)_3/f_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_3_f_hat.bag"
+     />
+  </group>
+
+  <group ns="$(arg mav_name)_4">
+    <include file="$(find rotors_gazebo)/launch/spawn_mav_colors.launch">
+      <arg name="color" default="Yellow"/>
+      <arg name="mav_name" value="$(arg mav_name)" />
+      <arg name="namespace" default="$(arg mav_name)_4"/>
+      <arg name="x" default="1"/>
+      <arg name="y" default="2"/>
+      <arg name="z" default="0.1"/>
+      <arg name="model" value="$(find rotors_description)/urdf/mav_generic_odometry_sensor.gazebo" />
+      <arg name="enable_logging" value="$(arg enable_logging)" />
+      <arg name="enable_ground_truth" value="$(arg enable_ground_truth)" />
+      <arg name="log_file" value="$(arg log_file)"/>
+    </include>
+    <node name="roll_pitch_yawrate_thrust_controller_node" pkg="rotors_control" type="roll_pitch_yawrate_thrust_controller_node" output="screen">
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/roll_pitch_yawrate_thrust_controller_$(arg mav_name).yaml" />
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/$(arg mav_name).yaml" />
+      <remap from="odometry" to="odometry_sensor1/odometry" />
+    </node>
+    <group>
+      <remap from="uav_roll_pitch_yawrate_thrust" to="/$(arg mav_name)_4/command/roll_pitch_yawrate_thrust"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_4/ground_truth/odometry"/>     
+      <include file="$(find controllers)/launch/uav_controller.launch">
+          <arg name="uav_name" value="$(arg mav_name)"/>
+      </include>
+    </group>
+    <group>
+      <remap from="other_uav_odometry_1" to="/$(arg mav_name)_1/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_2" to="/$(arg mav_name)_2/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_3" to="/$(arg mav_name)_3/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_4" to="/$(arg mav_name)_5/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_5" to="/$(arg mav_name)_6/ground_truth/odometry"/>
+      <remap from="other_uav_arrival_1" to="/$(arg mav_name)_1/arrival_topic"/>
+      <remap from="other_uav_arrival_2" to="/$(arg mav_name)_2/arrival_topic"/>
+      <remap from="other_uav_arrival_3" to="/$(arg mav_name)_3/arrival_topic"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_4/ground_truth/odometry"/>
+      <remap from="theta_hat_pub" to="/$(arg mav_name)_4/theta_hat_pub"/>
+      <remap from="d_hat_pub" to="/$(arg mav_name)_4/d_hat_pub"/>
+      <remap from="f_hat_pub" to="/$(arg mav_name)_4/f_hat_pub"/>
+      <param name="priority" value="4"/>
+      <param name="agent_number" value="4"/>
+      <param name="first_region" value="1"/>
+      <node name="navigation_adapt_integrator" pkg="LTL_mas_navigation" type="navigation_adapt_integrator.py" output="screen"/>
+    </group> 
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+    <node pkg="rosbag" type="record" name = "record"  output="screen" args="/$(arg mav_name)_4/ground_truth/odometry -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_4_pos.bag" />
+    <node pkg="rosbag" type="record" name = "record_u"  output="screen" args="/$(arg mav_name)_4/uav_force_reference -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_4_inputs.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_theta_hat"  output="screen" args="/$(arg mav_name)_4/theta_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_4_theta_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_d_hat"  output="screen" args="/$(arg mav_name)_4/d_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_4_d_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_f_hat"  output="screen" args="/$(arg mav_name)_4/f_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_4_f_hat.bag"
+     />
+  </group>
+
+
+  <group ns="$(arg mav_name)_5">
+    <include file="$(find rotors_gazebo)/launch/spawn_mav_colors.launch">
+      <arg name="color" default="Black"/>
+      <arg name="mav_name" value="$(arg mav_name)" />
+      <arg name="namespace" default="$(arg mav_name)_5"/>
+      <arg name="x" default="-1.5"/>
+      <arg name="y" default="-1"/>
+      <arg name="z" default="0.1"/>
+      <arg name="model" value="$(find rotors_description)/urdf/mav_generic_odometry_sensor.gazebo" />
+      <arg name="enable_logging" value="$(arg enable_logging)" />
+      <arg name="enable_ground_truth" value="$(arg enable_ground_truth)" />
+      <arg name="log_file" value="$(arg log_file)"/>
+    </include>
+    <node name="roll_pitch_yawrate_thrust_controller_node" pkg="rotors_control" type="roll_pitch_yawrate_thrust_controller_node" output="screen">
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/roll_pitch_yawrate_thrust_controller_$(arg mav_name).yaml" />
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/$(arg mav_name).yaml" />
+      <remap from="odometry" to="odometry_sensor1/odometry" />
+    </node>
+    <group>
+      <remap from="uav_roll_pitch_yawrate_thrust" to="/$(arg mav_name)_5/command/roll_pitch_yawrate_thrust"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_5/ground_truth/odometry"/>     
+      <include file="$(find controllers)/launch/uav_controller.launch">
+          <arg name="uav_name" value="$(arg mav_name)"/>
+      </include>
+    </group>
+    <group>
+      <remap from="other_uav_odometry_1" to="/$(arg mav_name)_1/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_2" to="/$(arg mav_name)_2/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_3" to="/$(arg mav_name)_3/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_4" to="/$(arg mav_name)_4/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_5" to="/$(arg mav_name)_6/ground_truth/odometry"/>
+      <remap from="other_uav_arrival_1" to="/$(arg mav_name)_1/arrival_topic"/>
+      <remap from="other_uav_arrival_2" to="/$(arg mav_name)_2/arrival_topic"/>
+      <remap from="other_uav_arrival_3" to="/$(arg mav_name)_3/arrival_topic"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_5/ground_truth/odometry"/>
+      <remap from="theta_hat_pub" to="/$(arg mav_name)_5/theta_hat_pub"/>
+      <remap from="d_hat_pub" to="/$(arg mav_name)_5/d_hat_pub"/>
+      <remap from="f_hat_pub" to="/$(arg mav_name)_5/f_hat_pub"/>
+      <param name="priority" value="5"/>
+      <param name="agent_number" value="5"/>
+      <param name="first_region" value="1"/>
+      <node name="navigation_adapt_integrator" pkg="LTL_mas_navigation" type="navigation_adapt_integrator.py" output="screen"/>
+    </group> 
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+    <node pkg="rosbag" type="record" name = "record"  output="screen" args="/$(arg mav_name)_5/ground_truth/odometry -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_5_pos.bag" />
+    <node pkg="rosbag" type="record" name = "record_u"  output="screen" args="/$(arg mav_name)_5/uav_force_reference -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_5_inputs.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_theta_hat"  output="screen" args="/$(arg mav_name)_5/theta_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_5_theta_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_d_hat"  output="screen" args="/$(arg mav_name)_5/d_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_5_d_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_f_hat"  output="screen" args="/$(arg mav_name)_5/f_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_5_f_hat.bag"
+     />
+
+  </group>
+
+
+  <group ns="$(arg mav_name)_6">
+    <include file="$(find rotors_gazebo)/launch/spawn_mav_colors.launch">
+      <arg name="color" default="White"/>
+      <arg name="mav_name" value="$(arg mav_name)" />
+      <arg name="namespace" default="$(arg mav_name)_6"/>
+      <arg name="x" default="0.5"/>
+      <arg name="y" default="-2"/>
+      <arg name="z" default="0.1"/>
+      <arg name="model" value="$(find rotors_description)/urdf/mav_generic_odometry_sensor.gazebo" />
+      <arg name="enable_logging" value="$(arg enable_logging)" />
+      <arg name="enable_ground_truth" value="$(arg enable_ground_truth)" />
+      <arg name="log_file" value="$(arg log_file)"/>
+    </include>
+    <node name="roll_pitch_yawrate_thrust_controller_node" pkg="rotors_control" type="roll_pitch_yawrate_thrust_controller_node" output="screen">
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/roll_pitch_yawrate_thrust_controller_$(arg mav_name).yaml" />
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/$(arg mav_name).yaml" />
+      <remap from="odometry" to="odometry_sensor1/odometry" />
+    </node>
+    <group>
+      <remap from="uav_roll_pitch_yawrate_thrust" to="/$(arg mav_name)_6/command/roll_pitch_yawrate_thrust"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_6/ground_truth/odometry"/>     
+      <include file="$(find controllers)/launch/uav_controller.launch">
+          <arg name="uav_name" value="$(arg mav_name)"/>
+      </include>
+    </group>
+    <group>
+      <remap from="other_uav_odometry_1" to="/$(arg mav_name)_1/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_2" to="/$(arg mav_name)_2/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_3" to="/$(arg mav_name)_3/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_4" to="/$(arg mav_name)_4/ground_truth/odometry"/>
+      <remap from="other_uav_odometry_5" to="/$(arg mav_name)_5/ground_truth/odometry"/>
+      <remap from="other_uav_arrival_1" to="/$(arg mav_name)_1/arrival_topic"/>
+      <remap from="other_uav_arrival_2" to="/$(arg mav_name)_2/arrival_topic"/>
+      <remap from="other_uav_arrival_3" to="/$(arg mav_name)_3/arrival_topic"/>
+      <remap from="uav_odometry" to="/$(arg mav_name)_6/ground_truth/odometry"/>
+      <remap from="theta_hat_pub" to="/$(arg mav_name)_6/theta_hat_pub"/>
+      <remap from="d_hat_pub" to="/$(arg mav_name)_6/d_hat_pub"/>
+      <remap from="f_hat_pub" to="/$(arg mav_name)_6/f_hat_pub"/>
+      <param name="priority" value="6"/>
+      <param name="agent_number" value="6"/>
+      <param name="first_region" value="1"/>
+      <node name="navigation_adapt_integrator" pkg="LTL_mas_navigation" type="navigation_adapt_integrator.py" output="screen"/>
+    </group> 
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+    <node pkg="rosbag" type="record" name = "record"  output="screen" args="/$(arg mav_name)_6/ground_truth/odometry -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_6_pos.bag"
+     />
+     <node pkg="rosbag" type="record" name = "record_u"  output="screen" args="/$(arg mav_name)_6/uav_force_reference -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_6_inputs.bag"
+     />
+     <node pkg="rosbag" type="record" name = "record_theta_hat"  output="screen" args="/$(arg mav_name)_6/theta_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_6_theta_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_d_hat"  output="screen" args="/$(arg mav_name)_6/d_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_6_d_hat.bag"
+     />
+    <node pkg="rosbag" type="record" name = "record_f_hat"  output="screen" args="/$(arg mav_name)_6/f_hat_pub -O /home/cverginis/catkin_ws/src/LTL_mas_navigation/nodes/$(arg mav_name)_6_f_hat.bag"
+     />
+  </group>
+
+
+
+
+
+
+
+</launch>
